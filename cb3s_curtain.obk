@@ -1,0 +1,134 @@
+// ========================================================
+// LOGIKA GORDEN - VERSI PRO (ZERO LAG & TARGET SNAP)
+// ========================================================
+
+if $CH15==0 then goto bagian_init
+exit
+
+auto_navigate:
+    if $CH13==$CH12 then return
+    echo "Nav: Target $CH13, Current $CH12"
+    if $CH13>$CH12 then backlog setChannel 1 0; echo "Nav: Opening..."
+    if $CH13<$CH12 then backlog setChannel 1 2; echo "Nav: Closing..."
+    return
+
+handle_status_change:
+    if $CH3==3 then setChannel 26 3
+    if $CH3==4 then setChannel 26 4
+    if $CH3==0 then goto stop_engine
+    
+    // Step 2: Cek Mode Kalibrasi (CH16)
+    // Jika Mode Kalibrasi Nyala (1), keluar dari skrip (Jangan stop otomatis)
+    if $CH16==1 then return
+    
+    if $CH20==1 then return
+    goto start_engine
+
+start_engine:
+    setChannel 20 1
+    setChannel 22 0 
+    setChannel 21 $CH12
+    setChannel 24 0
+    setChannel 10 0
+    
+    // 1. HITUNG TOTAL TICKS KALIBRASI (CH23 = CH11 * 10)
+    // KOMPENSASI LAG: Kita gunakan 9 ticks per detik (bukan 10)
+    // agar slider bergerak sedikit lebih cepat mengimbangi lag prosesor
+    setChannel 23 0
+    setChannel 25 0
+    loop_full_ticks:
+        addChannel 23 $CH11
+        addChannel 25 1
+        if $CH25<9 then goto loop_full_ticks
+    
+    // 2. HITUNG JARAK MANUAL
+    setChannel 29 0
+    setChannel 31 $CH12
+    setChannel 32 $CH13
+    if $CH32>$CH31 then goto hitung_jarak_up
+    if $CH32<$CH31 then goto hitung_jarak_down
+    goto hitung_waktu
+
+hitung_jarak_up:
+    if $CH31>=$CH32 then goto hitung_waktu
+    addChannel 31 1
+    addChannel 29 1
+    goto hitung_jarak_up
+
+hitung_jarak_down:
+    if $CH31<=$CH32 then goto hitung_waktu
+    addChannel 31 -1
+    addChannel 29 1
+    goto hitung_jarak_down
+
+hitung_waktu:
+    // 3. HITUNG TOTAL TICKS PERGERAKAN (CH33)
+    Map 33 $CH29 0 100 0 $CH23
+    
+    // 4. HITUNG DETIK UNTUK HARD STOP
+    setChannel 30 0
+    if $CH33>=9 then Map 30 $CH33 9 900 1 100
+    
+    // 5. SET TARGET UPTIME
+    setChannel 27 $uptime
+    setChannel 28 $CH27
+    addChannel 28 $CH30
+    
+    echo "Engine: Start. Dist $CH29%, Ticks $CH33"
+    addRepeatingEvent 0.1 -1 startScript cb3s_curtain.obk engine_tick
+    return
+
+engine_tick:
+    addChannel 24 1
+    addChannel 22 1
+    if $CH22>=10 then backlog addChannel 10 1; addChannel 22 -10
+    
+    if $CH33==0 then goto engine_stop_direct
+    Map 12 $CH24 0 $CH33 $CH21 $CH13
+    
+    if $CH3==3 then if $CH12>=$CH13 then setChannel 1 1
+    if $CH3==4 then if $CH12<=$CH13 then setChannel 1 1
+    if $uptime>=$CH28 then setChannel 1 1
+    return
+
+engine_stop_direct:
+    setChannel 1 1
+    return
+
+stop_engine:
+    if $CH20==0 then return
+    clearRepeatingEvents
+    setChannel 20 0
+    
+    // --- TARGET SNAP (Koreksi Instan) ---
+    // Paksa posisi sekarang sama dengan target agar tidak ada sisa jarak
+    setChannel 12 $CH13
+    
+    // Auto-Snap Endpoint (0/100)
+    if $CH26==3 then if $CH12>95 then setChannel 12 100
+    if $CH26==4 then if $CH12<5 then setChannel 12 0
+    
+    setChannel 202 $CH12
+    setChannel 13 $CH12
+    echo "Engine: Stopped at $CH12"
+    return
+
+handle_calib:
+    setChannel 201 $CH11
+    setChannel 12 0
+    setChannel 10 $CH12
+    setChannel 202 $CH12
+    setChannel 13 $CH12
+    echo "Calibration Saved | Max: $CH11 | Pos: $CH12"
+    setChannel 14 0
+    return
+    
+bagian_init:
+    clearAllHandlers
+    clearRepeatingEvents
+    addEventHandler OnChannelChange 3 startScript cb3s_curtain.obk handle_status_change
+    addEventHandler OnChannelChange 13 startScript cb3s_curtain.obk auto_navigate 2
+    addEventHandler OnChannelChange 14 startScript cb3s_curtain.obk handle_calib
+    setChannel 15 1
+    setChannel 20 0
+    exit
