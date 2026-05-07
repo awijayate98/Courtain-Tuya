@@ -1,7 +1,3 @@
-// ========================================================
-// LOGIKA GORDEN - VERSI PRO (ZERO LAG & TARGET SNAP)
-// ========================================================
-
 if $CH15==0 then goto bagian_init
 exit
 
