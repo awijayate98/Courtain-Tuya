@@ -2,14 +2,6 @@ startDriver TuyaMCU
 tuyaMcu_setBaudRate 9600
 tuyaMcu_defWiFiState 4
 
-// Konfigurasi MQTT (HiveMQ Public)
-MQTTHost broker.hivemq.com
-MQTTPort 1883
-MQTTUser ""
-MQTTPass ""
-SetMQTTClient buterfly/device/gorden/%SHORTNAME%
-SetMQTTTopic buterfly/device/gorden/%SHORTNAME%
-
 setFlag 10 1
 setFlag 11 1
 setFlag 51 1
