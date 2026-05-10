@@ -2,6 +2,14 @@ startDriver TuyaMCU
 tuyaMcu_setBaudRate 9600
 tuyaMcu_defWiFiState 4
 
+// Konfigurasi MQTT (HiveMQ Public)
+MQTTHost broker.hivemq.com
+MQTTPort 1883
+MQTTUser ""
+MQTTPass ""
+SetMQTTClient buterfly/device/gorden/%SHORTNAME%
+SetMQTTTopic buterfly/device/gorden/%SHORTNAME%
+
 setFlag 10 1
 setFlag 11 1
 setFlag 51 1
@@ -34,22 +42,42 @@ setChannelType 15 ReadOnlyEnum
 setChannelLabel 15 "Script Status"
 setChannelType 16 Toggle
 setChannelLabel 16 "MODE: CALIBRATION"
+setChannelType 17 TextField
+setChannelLabel 17 "SCHED: Morning (HHMM)"
+setChannelType 18 TextField
+setChannelLabel 18 "SCHED: Evening (HHMM)"
+setChannelType 19 TextField
+setChannelLabel 19 "SCHED: Days Bitmask"
+setChannelType 41 Dimmer
+setChannelLabel 41 "POS: Custom Open (%)"
+setChannelType 42 Dimmer
+setChannelLabel 42 "POS: Custom Close (%)"
 
 delay_s 1
 
-// Ambil nilai Kalibrasi dari CH201 ke CH11
+// Ambil nilai Kalibrasi & Posisi dari NVM
 setChannel 11 $CH201
-// Ambil nilai Posisi Terakhir dari CH202 ke CH12
 setChannel 12 $CH202
 setChannel 13 $CH12
 SetStartValue 12 -1
 
-// --- JADWAL OTOMATIS (Format: Jam Hari ID Perintah) ---
-// ID 1 untuk Pagi, ID 2 untuk Sore
-addClockEvent 07:00 1234567 1 setChannel 13 100
-addClockEvent 18:00 1234567 2 setChannel 13 0
+// Ambil nilai Jadwal & Mode dari NVM
+setChannel 17 $CH203
+setChannel 18 $CH204
+setChannel 19 $CH207
+setChannel 41 $CH208
+setChannel 42 $CH209
 
-echo "Automated Schedule Loaded"
+// Nilai default jika memori kosong (Reset)
+if $CH17==0 then backlog setChannel 17 700; setChannel 203 700
+if $CH18==0 then backlog setChannel 18 1800; setChannel 204 1800
+if $CH19==0 then backlog setChannel 19 127; setChannel 207 127
+if $CH41==0 then backlog setChannel 41 100; setChannel 208 100
+
+echo "System Ready - Automated Schedule Loaded"
+
+// Jalankan Otak Penjadwal & Pelapor Status
+startScript scheduler.obk init
 
 startScript cb3s_curtain.obk
 tuyaMcu_sendQueryState
