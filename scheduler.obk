@@ -1,0 +1,64 @@
+// ========================================================
+// SATPAM JADWAL & PELAPOR STATUS (UNIVERSAL)
+// ========================================================
+
+// Label ini dipanggil saat booting awal
+init:
+    // 1. Dengarkan permintaan status dari HP (MQTT Subscribe)
+    subscribe get_fullstatus startScript scheduler.obk lapor_status
+    
+    // 2. Lapor otomatis setiap kali ada perubahan penting
+    addEventHandler OnChannelChange 3 startScript scheduler.obk lapor_status
+    addEventHandler OnChannelChange 12 startScript scheduler.obk lapor_status
+    addEventHandler OnChannelChange 13 startScript scheduler.obk lapor_status
+    addEventHandler OnChannelChange 16 startScript scheduler.obk lapor_status
+    
+    // 3. Jalankan pengecekan jadwal setiap 20 detik
+    addRepeatingEvent 20 -1 startScript scheduler.obk check_schedule
+    
+    echo "Scheduler & Status Reporter Initialized"
+    return
+
+check_schedule:
+    if $CH16==1 then return
+    Map 40 $hour 0 24 0 2400
+    addChannel 40 $minute
+    if $CH40==$CH43 then goto lapor_status
+    
+    // Cek Hari (Bitmask)
+    setChannel 52 0
+    setChannel 51 $CH19
+    if $CH51>=64 then if $day==6 then setChannel 52 1
+    if $CH51>=64 then addChannel 51 -64
+    if $CH51>=32 then if $day==5 then setChannel 52 1
+    if $CH51>=32 then addChannel 51 -32
+    if $CH51>=16 then if $day==4 then setChannel 52 1
+    if $CH51>=16 then addChannel 51 -16
+    if $CH51>=8 then if $day==3 then setChannel 52 1
+    if $CH51>=8 then addChannel 51 -8
+    if $CH51>=4 then if $day==2 then setChannel 52 1
+    if $CH51>=4 then addChannel 51 -4
+    if $CH51>=2 then if $day==1 then setChannel 52 1
+    if $CH51>=2 then addChannel 51 -2
+    if $CH51>=1 then if $day==0 then setChannel 52 1
+    if $CH52==0 then goto lapor_status
+
+    // Eksekusi Jadwal
+    if $CH40==$CH17 then backlog setChannel 13 $CH41; setChannel 43 $CH40; echo "!!! JADWAL PAGI JALAN !!!"
+    if $CH40==$CH18 then backlog setChannel 13 $CH42; setChannel 43 $CH40; echo "!!! JADWAL SORE JALAN !!!"
+    
+lapor_status:
+    // Kirim Laporan Lengkap (JSON) ke topik 'fullstatus'
+    publish fullstatus {"Ch3":$CH3,"Ch12":$CH12,"Ch13":$CH13,"Ch16":$CH16,"Ch17":$CH17,"Ch18":$CH18,"Ch19":$CH19,"Ch41":$CH41,"Ch42":$CH42}
+    return
+
+sync_nvm:
+    setChannel 203 $CH17
+    setChannel 204 $CH18
+    setChannel 207 $CH19
+    setChannel 208 $CH41
+    setChannel 209 $CH42
+    echo "Schedules Saved to NVM"
+    // Langsung update MQTT saat settingan berubah
+    startScript scheduler.obk lapor_status
+    return
